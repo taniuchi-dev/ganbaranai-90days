@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>六曜カレンダー(.ics)をつくる</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%97%93%3C/text%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light dark;--bg:#f4f6f8;--panel:#fff;--ink:#17212b;--sub:#56626f;--line:#d5dce4;--accent:#2d4a7a;--on:#fff;--soft:#e8eef7;--warn:#8a4b00;
+--serif:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;--sans:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo","Noto Sans JP",sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#10161d;--panel:#18212b;--ink:#e6ebf0;--sub:#9aa7b4;--line:#2b3846;--accent:#8fb0e6;--on:#10161d;--soft:#1f2c3b;--warn:#e0b070}}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.75 var(--sans)}
+main{max-width:640px;margin:0 auto;padding:28px 18px 56px}
+h1{font:600 1.25rem/1.4 var(--serif);margin:0 0 4px}
+h2{font:600 1.05rem/1.5 var(--serif);margin:0 0 10px}
+p{margin:0 0 10px}
+.sub{color:var(--sub);font-size:.9rem}
+.today{margin:22px 0;padding:22px 20px;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.today .big{font:600 3.2rem/1.2 var(--serif);letter-spacing:.08em;color:var(--accent)}
+.today .date{color:var(--sub);font-size:.95rem}
+section{margin:0 0 26px}
+fieldset{border:0;padding:0;margin:0 0 16px}
+legend{font-weight:600;padding:0;margin-bottom:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+select,button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-height:44px}
+button{cursor:pointer}
+button.primary{background:var(--accent);color:var(--on);border-color:var(--accent);font-weight:600;padding:8px 18px}
+button.pre[aria-pressed=true]{background:var(--soft);border-color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+label.opt{display:flex;gap:8px;align-items:flex-start;margin:4px 0}
+label.opt input{margin-top:.5rem}
+.count{margin:12px 0;font-weight:600}
+.warn{color:var(--warn)}
+.sample{margin:12px 0;padding:10px 14px;background:var(--soft);border-radius:6px;font-size:.92rem}
+.sample div{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+details{border-top:1px solid var(--line);padding:10px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;font-weight:600;min-height:32px}
+ol,ul{margin:8px 0 8px 1.3em;padding:0}
+li{margin:4px 0}
+#msg{min-height:1.6em;margin-top:10px}
+#chunks{margin:0 0 14px;padding:10px 14px;background:var(--soft);border-radius:6px}
+.chunk{margin:8px 0}
+footer{color:var(--sub);font-size:.88rem}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>六曜カレンダー(.ics)をつくる</h1>
+<p class="sub">必要な期間だけを選んで、Googleカレンダーなどに取り込めるファイルを作ります。入力した内容は送信しません。</p>
+</header>
+
+<div class="today" id="today" hidden>
+<div class="date" id="todayDate"></div>
+<div class="big" id="todayName"></div>
+</div>
+
+<section>
+<h2>1. 期間を選ぶ</h2>
+<fieldset>
+<legend>よく使う期間</legend>
+<div class="row" id="presets">
+<button type="button" class="pre" data-p="year">今年だけ</button>
+<button type="button" class="pre" data-p="next">来年末まで</button>
+<button type="button" class="pre" data-p="wide">過去1年+未来2年</button>
+</div>
+</fieldset>
+<fieldset>
+<legend>期間を指定する(1873年1月〜2032年12月)</legend>
+<div class="row">
+<select id="sy" aria-label="開始年"></select><select id="sm" aria-label="開始月"></select><span>から</span>
+<select id="ey" aria-label="終了年"></select><select id="em" aria-label="終了月"></select><span>まで</span>
+</div>
+</fieldset>
+<p class="count" id="count" aria-live="polite"></p>
+</section>
+
+<section>
+<h2>2. 表示を選ぶ</h2>
+<fieldset>
+<legend>予定のタイトル</legend>
+<label class="opt"><input type="radio" name="fmt" value="plain" checked><span>「大安」のように六曜だけ</span></label>
+<label class="opt"><input type="radio" name="fmt" value="prefix"><span>「六曜:大安」のように頭に「六曜:」を付ける</span></label>
+</fieldset>
+<label class="opt"><input type="checkbox" id="desc" checked><span>説明欄に、六曜の意味と旧暦の日付を入れる</span></label>
+<div class="sample" id="sample" aria-label="プレビュー"></div>
+</section>
+
+<section>
+<h2>3. ファイルを作る</h2>
+<div id="chunks" hidden></div>
+<div class="row">
+<button type="button" class="primary" id="dl">.icsファイルを保存</button>
+<button type="button" id="cp">テキストをコピー</button>
+</div>
+<p id="msg" class="sub" role="status" aria-live="polite"></p>
+<p class="sub">保存できない環境(アプリ内の表示など)では、「テキストをコピー」を使い、メモ帳などに貼り付けて、拡張子を「.ics」にして保存してください。</p>
+</section>
+
+<section>
+<h2>カレンダーへの取り込み方</h2>
+<details open><summary>Googleカレンダー(パソコンのブラウザ)</summary>
+<ol>
+<li>Googleカレンダーを開き、設定から「カレンダーを追加」→「新しいカレンダーを作成」で、「六曜」というカレンダーを作ります。あとで消しやすくなります。</li>
+<li>設定の「インポート/エクスポート」を開きます。</li>
+<li>保存した.icsファイルを選び、追加先に「六曜」を選んで、「インポート」を押します。</li>
+</ol>
+<p class="sub">スマートフォンのGoogleカレンダーアプリからは、取り込みの操作ができません。パソコンで取り込むと、アプリにも反映されます。反映に時間がかかることがあります。画面の表記は、バージョンによって異なる場合があります。</p>
+</details>
+<details><summary>iPhone(標準のカレンダー)</summary>
+<ol>
+<li>.icsファイルを、メールやファイルアプリなどからiPhoneに送って開きます。</li>
+<li>表示される画面で、追加先のカレンダーを選びます。専用のカレンダーを新しく作っておくと、あとで消しやすくなります。</li>
+<li>「すべて追加」を押します。</li>
+</ol>
+</details>
+<details><summary>取り込みをやり直したいとき</summary>
+<p>同じ日付の予定は、同じ識別子で作られます。専用のカレンダーを作って取り込んでおけば、そのカレンダーごと削除して、やり直せます。</p>
+</details>
+</section>
+
+<section>
+<h2>このツールについて</h2>
+<ul>
+<li>対応期間は、1873年1月1日〜2032年12月31日です。それより前は暦法が異なり、2033年以降は旧暦の規則だけでは月の番号を決められない箇所があるため、対応していません。</li>
+<li>Googleカレンダーでは、1,461件(4年分)までは取り込めることを確認しています。1,827件(5年分)は、説明欄なしでも失敗しました。ファイルの大きさではなく、予定の件数に上限があると考えられます。期間を分けて作ってください。Outlookでは、10年分(3,652件)でも取り込めることを確認しています。</li>
+<li>旧暦は、天保暦に準じて、朔(新月)と中気を日本時間で計算しています。閏月は、前の月と同じ月番号で六曜を決めています。</li>
+<li>朔と中気の日時は、国立天文台の暦要項(2004〜2012年、2018〜2027年)の公表値と照合し、1分以内で一致することを確認しました(<a href="https://eco.mtk.nao.ac.jp/koyomi/yoko/" rel="noopener">国立天文台 暦計算室の暦要項</a>より引用。© 国立天文台)。旧暦の月日と六曜そのものは、公的な定めがないため、照合の対象外です。朔や中気が午前0時の直前・直後にあたる、ごく一部の日は、まだ確認が済んでいません。</li>
+<li>国立天文台が、このツールを承認・保証するものではありません。</li>
+<li>六曜は民間の暦注です。日取りの最終判断は、ご自身で行ってください。</li>
+<li>入力した内容は送信せず、アクセスの計測もしていません。</li>
+</ul>
+</section>
+<footer>六曜カレンダー(.ics)をつくる / 試作版</footer>
+</main>
+<script>
+(function(){
+"use strict";
+var LEN="1001010110110100101010111010100010111011010001011011100100101011101010010101101101010010110101101001010101101101001010101110100101001110110010010110111010001010111010100101011101010010101101101001010101101010101010101101011001010101101100100101101110010010101110101001010111010100101011011010010101011011001010101011010101010101011010101001011011010100101011101010010101110101001010110110100101010111010010101011010101010101011010101010101010110101001011011010100101011101010010011101101001001101110100100101110110010100110110101010101010110101010010110110101001010111010100101011011010010011011101001001011101100100101101101010100110101101010010110101101010010101101101001010110110100100110111010010010111011001001011011100100101011101010010101101101010010101101101010010101101101001010101110100100101110110010010110111001001010111010100101011011010010101011011010010101011011010010101011011001001011101100100101101110010010101110101001010111010100101011011010010101011010101010101011010101010011011011001001011011100100101011101010010101110101001010110110100101010110101010101010110101010101010110101010010110110101001010111010100101011101010010011101101001001101101100101010110101010101010101101010100110101101010010101110101001010111010100100111011010010011011101001001011101010101001101101010100110101101010100101101101010010101101101001001101110100100110111010010010111011001001011011010100101011011010100101101011010100101011011010010101101101001001101110100100101110110010010110110101001010111010100101011011010100101011010110100101011011010010011011101001001011101100100101101110010010101110101001010110110100101010110101010101010110110010101010110110010010111011001001011011100100101011101010010101101101001010101110100101010110101010101010101101010100101110101010010110110101001010111010100101011101010010101101101001010101101010101010101101010101010101101010100101101101010010101110101001010111010100100111011010010011011011001001101011010101010101011010101001011011";
+var LEAPS=[7,43,78,107,142,178,211,242,278,313,343,377,413,448,477,513,547,577,612,648,683,712,748,783,812,848,883,918,948,983,1018,1048,1083,1118,1154,1183,1218,1254,1283,1318,1353,1384,1417,1453,1488,1518,1552,1588,1623,1653,1688,1723,1754,1787,1823,1858,1887,1923,1958];
+var NAMES=["大安","赤口","先勝","友引","先負","仏滅"];
+var MEAN=["万事に良いとされる日","正午ごろだけ良いとされる日","午前が良く、午後は良くないとされる日","朝夕は良く、昼は良くないとされる日。葬儀を避ける習慣がある","午前は良くなく、午後は良いとされる日","万事に良くないとされる日"];
+var DAY=864e5, T0=Date.UTC(1872,11,30)/DAY;
+var MIN=Date.UTC(1873,0,1)/DAY, MAX=Date.UTC(2032,11,31)/DAY;
+var S=[T0],M=[12],L=[0];
+(function(){var set={},i,m=12,s=T0;for(i=0;i<LEAPS.length;i++)set[LEAPS[i]]=1;
+for(i=0;i<LEN.length;i++){s+=LEN.charAt(i)==="1"?30:29;S.push(s);if(set[i+1]){L.push(1);M.push(m);}else{m=m%12+1;L.push(0);M.push(m);}}})();
+function look(n){var lo=0,hi=S.length-1,mid;while(lo<hi){mid=(lo+hi+1)>>1;if(S[mid]<=n)lo=mid;else hi=mid-1;}
+return {m:M[lo],d:n-S[lo]+1,leap:L[lo]===1};}
+function info(n){var k=look(n),r=(k.m+k.d)%6;return {m:k.m,d:k.d,leap:k.leap,r:r,name:NAMES[r]};}
+function ymd(n){var d=new Date(n*DAY);return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate()};}
+function p2(x){return (x<10?"0":"")+x;}
+function ds(n){var t=ymd(n);return t.y+p2(t.m)+p2(t.d);}
+function jp(n){var t=ymd(n);return t.y+"年"+t.m+"月"+t.d+"日";}
+function $(id){return document.getElementById(id);}
+var sy=$("sy"),sm=$("sm"),ey=$("ey"),em=$("em");
+function fill(sel,from,to,suffix){for(var v=from;v<=to;v++){var o=document.createElement("option");o.value=v;o.textContent=v+suffix;sel.appendChild(o);}}
+fill(sy,1873,2032,"年");fill(ey,1873,2032,"年");fill(sm,1,12,"月");fill(em,1,12,"月");
+function range(){var a=Date.UTC(+sy.value,+sm.value-1,1)/DAY,b=Date.UTC(+ey.value,+em.value,0)/DAY;return {a:Math.max(a,MIN),b:Math.min(b,MAX)};}
+function opts(){var f=document.querySelector("input[name=fmt]:checked").value;return {fmt:f,desc:$("desc").checked};}
+function title(i,o){return (o.fmt==="prefix"?"六曜:":"")+i.name;}
+function esc(s){return s.replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");}
+var enc=typeof TextEncoder!=="undefined"?new TextEncoder():null;
+function blen(c){if(enc)return enc.encode(c).length;var x=c.charCodeAt(0);return x<128?1:x<2048?2:3;}
+function fold(line){var out=[],cur="",len=0,ch,b;for(ch of line){b=blen(ch);if(len+b>75){out.push(cur);cur=" "+ch;len=1+b;}else{cur+=ch;len+=b;}}out.push(cur);return out.join("\r\n");}
+function build(r,o){var L2=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//rokuyo-ics//JP","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:六曜"],n,i,t;
+for(n=r.a;n<=r.b;n++){i=info(n);
+L2.push("BEGIN:VEVENT","UID:rokuyo-"+ds(n)+"@rokuyo-ics.invalid","DTSTAMP:20260101T000000Z","DTSTART;VALUE=DATE:"+ds(n),"DTEND;VALUE=DATE:"+ds(n+1),"SUMMARY:"+esc(title(i,o)));
+if(o.desc)L2.push("DESCRIPTION:"+esc(MEAN[i.r]+"(旧暦"+(i.leap?"閏":"")+i.m+"月"+i.d+"日)。六曜は民間の暦注です。"));
+L2.push("TRANSP:TRANSPARENT","END:VEVENT");}
+L2.push("END:VCALENDAR");return L2.map(fold).join("\r\n")+"\r\n";}
+var CAP=1461;
+function chunks(r){var out=[],e=ymd(r.b),y=ymd(r.a),cy=y.y,cm=y.m,start=r.a,acc=0,s,t,dim;
+while(cy<e.y||(cy===e.y&&cm<=e.m)){s=Math.max(Date.UTC(cy,cm-1,1)/DAY,r.a);t=Math.min(Date.UTC(cy,cm,0)/DAY,r.b);dim=t-s+1;
+if(acc+dim>CAP&&acc>0){out.push([start,s-1]);start=s;acc=0;}
+acc+=dim;cm++;if(cm>12){cm=1;cy++;}}
+out.push([start,r.b]);return out;}
+function fnameR(a,b){var x=ymd(a),y=ymd(b);return "rokuyo-"+x.y+p2(x.m)+"-"+y.y+p2(y.m)+".ics";}
+function msg(t){$("msg").textContent=t;}
+function save(t,name){try{var blob=new Blob([t],{type:"text/calendar;charset=utf-8"}),u=URL.createObjectURL(blob),a=document.createElement("a");
+a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(u);},4000);
+msg(name+" を保存しました。保存されない場合は、「テキストをコピー」を使ってください。");}
+catch(err){msg("保存できませんでした。「テキストをコピー」を使ってください。");}}
+function copyText(t){var done="コピーしました。貼り付けて、拡張子を「.ics」にして保存してください。";
+function fallback(){var ta=document.createElement("textarea");ta.value=t;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand("copy");}catch(e){}document.body.removeChild(ta);msg(ok?done:"コピーできませんでした。ブラウザで開き直して、もう一度お試しください。");}
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){msg(done);},fallback);}else{fallback();}}
+function renderChunks(r,show){var box=$("chunks");box.innerHTML="";if(!show){box.hidden=true;return;}
+var list=chunks(r),p=document.createElement("p");box.hidden=false;
+p.textContent="Googleカレンダーに取り込むときは、次の"+list.length+"個のファイルに分けて保存してください(1ファイルあたり1,461件まで)。";box.appendChild(p);
+list.forEach(function(c){var row=document.createElement("div"),lab=document.createElement("span"),b1=document.createElement("button"),b2=document.createElement("button");
+row.className="row chunk";lab.textContent=jp(c[0])+"〜"+jp(c[1])+"("+(c[1]-c[0]+1)+"件)";
+b1.type="button";b1.textContent="保存";b1.addEventListener("click",function(){save(build({a:c[0],b:c[1]},opts()),fnameR(c[0],c[1]));});
+b2.type="button";b2.textContent="コピー";b2.addEventListener("click",function(){copyText(build({a:c[0],b:c[1]},opts()));});
+row.appendChild(lab);row.appendChild(b1);row.appendChild(b2);box.appendChild(row);});}
+function refresh(){var r=range(),c=$("count"),smp=$("sample"),o=opts(),n,h="";
+if(r.a>r.b){c.textContent="開始が終了より後になっています。期間を直してください。";c.className="count warn";smp.innerHTML="";return false;}
+var cnt=r.b-r.a+1;c.className="count";
+c.textContent=jp(r.a)+"から"+jp(r.b)+"までの、"+cnt+"日分(予定"+cnt+"件)を作ります。";
+if(cnt>1461){c.textContent+="1,461件(4年分)を超えると、Googleカレンダーでは取り込みに失敗する場合があります。「3. ファイルを作る」で、分けて保存できます。";c.className="count warn";}
+for(n=r.a;n<Math.min(r.a+3,r.b+1);n++){var i=info(n);h+="<div><span>"+jp(n)+"</span><span>"+title(i,o)+(o.desc?"(旧暦"+(i.leap?"閏":"")+i.m+"月"+i.d+"日)":"")+"</span></div>";}
+smp.innerHTML=h+(cnt>3?"<div class=sub>…</div>":"");renderChunks(r,cnt>CAP);return true;}
+function setRange(a,b){var x=ymd(a),y=ymd(b);sy.value=x.y;sm.value=x.m;ey.value=y.y;em.value=y.m;}
+function clampY(y){return Math.max(1873,Math.min(2032,y));}
+var now=new Date(),tY=clampY(now.getFullYear()),tM=now.getFullYear()===tY?now.getMonth()+1:1;
+function preset(k){var a,b;if(k==="year"){a=Date.UTC(tY,0,1);b=Date.UTC(tY,11,31);}
+else if(k==="next"){a=Date.UTC(tY,tM-1,1);b=Date.UTC(clampY(tY+1),11,31);}
+else{a=Date.UTC(clampY(tY-1),0,1);b=Date.UTC(clampY(tY+2),11,31);}
+setRange(a/DAY,b/DAY);var bs=document.querySelectorAll("button.pre"),i;for(i=0;i<bs.length;i++)bs[i].setAttribute("aria-pressed",bs[i].getAttribute("data-p")===k?"true":"false");refresh();}
+var pb=document.querySelectorAll("button.pre"),q;
+for(q=0;q<pb.length;q++)pb[q].addEventListener("click",function(e){preset(e.currentTarget.getAttribute("data-p"));});
+[sy,sm,ey,em].forEach(function(el){el.addEventListener("change",function(){var bs=document.querySelectorAll("button.pre"),i;for(i=0;i<bs.length;i++)bs[i].setAttribute("aria-pressed","false");refresh();});});
+document.addEventListener("change",function(e){if(e.target.name==="fmt"||e.target.id==="desc")refresh();});
+function make(){if(!refresh()){msg("期間を直してから、もう一度押してください。");return null;}return build(range(),opts());}
+function fname(){var r=range();return fnameR(r.a,r.b);}
+$("dl").addEventListener("click",function(){var t=make();if(t===null)return;save(t,fname());});
+$("cp").addEventListener("click",function(){var t=make();if(t===null)return;copyText(t);});
+var tn=Math.floor(Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())/DAY);
+if(tn>=MIN&&tn<=MAX){var ti=info(tn);$("today").hidden=false;$("todayDate").textContent="今日は"+jp(tn)+"(旧暦"+(ti.leap?"閏":"")+ti.m+"月"+ti.d+"日)";$("todayName").textContent=ti.name;}
+preset("year");
+})();
+</script>
+</body>
+</html>
